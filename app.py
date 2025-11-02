@@ -10,7 +10,7 @@ from datetime import timedelta
 # ===============================
 MODEL_PATH = "model_h3.pkl"
 SCALER_PATH = "scaler_h3.pkl"
-DATA_PATH = "sample_data/data_no2.csv"
+DATA_PATH = "data_no2.csv"
 
 # Load model dan scaler
 model = joblib.load(MODEL_PATH)
@@ -115,3 +115,4 @@ else:
 # ===============================
 st.markdown("---")
 st.caption("Dibuat oleh Dwi Prasetya Mumtaz menggunakan Streamlit")
+
