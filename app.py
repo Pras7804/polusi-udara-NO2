@@ -3,102 +3,115 @@ import pandas as pd
 import numpy as np
 import joblib
 import matplotlib.pyplot as plt
+from datetime import timedelta
 
-# ==============================
-# 1️⃣  LOAD DATA DAN MODEL
-# ==============================
-@st.cache_data
-def load_data():
-    df = pd.read_csv("data_no2.csv")
-    df['date'] = pd.to_datetime(df['date'])
-    return df
+# ===============================
+# Load model dan scaler
+# ===============================
+MODEL_PATH = "model_h3.pkl"
+SCALER_PATH = "scaler_h3.pkl"
+DATA_PATH = "sample_data/data_no2.csv"
 
-@st.cache_resource
-def load_model():
-    knn_h3 = joblib.load("model_h3.pkl")
-    scaler_h3 = joblib.load("scaler_h3.pkl")
-    return knn_h3, scaler_h3
+# Load model dan scaler
+model = joblib.load(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
 
-# Load
-new_df = load_data()
-knn_h3, scaler_h3 = load_model()
+# ===============================
+# Load data historis
+# ===============================
+try:
+    df = pd.read_csv(DATA_PATH, parse_dates=['date'])
+    df = df.sort_values('date').reset_index(drop=True)
 
+    if 'NO2' not in df.columns:
+        raise ValueError("Kolom 'NO2' tidak ditemukan dalam dataset.")
 
-# ==============================
-# 2️⃣  SIDEBAR
-# ==============================
-st.sidebar.title("🌍 NO₂ Forecasting App")
-st.sidebar.write("Prediksi kadar NO₂ untuk hari berikutnya menggunakan model KNN (h1–h3).")
+    df['h1'] = df['NO2'].shift(1)
+    df['h2'] = df['NO2'].shift(2)
+    df['h3'] = df['NO2'].shift(3)
+    df = df.dropna().reset_index(drop=True)
 
-show_data = st.sidebar.checkbox("Tampilkan Data Awal", value=False)
-if show_data:
-    st.subheader("📊 Data Awal")
-    st.dataframe(new_df.tail(10))
+except Exception as e:
+    df = None
+    st.error(f"⚠️ Gagal memuat data historis: {e}")
 
-
-# ==============================
-# 3️⃣  VISUALISASI DATA
-# ==============================
-st.subheader("📈 Tren Konsentrasi NO₂")
-fig, ax = plt.subplots(figsize=(10, 4))
-ax.plot(new_df['date'], new_df['NO2'], label='NO₂ (mol/m²)')
-ax.set_xlabel("Tanggal")
-ax.set_ylabel("Konsentrasi NO₂ (mol/m²)")
-ax.legend()
-st.pyplot(fig)
-
-
-# ==============================
-# 4️⃣  FUNGSI PREDIKSI
-# ==============================
-def prediksi_hari_berikutnya(data, model, scaler, n_hari=3):
-    last_vals = data['NO2'].values[-n_hari:]
-    feature_names = [f"h{i}" for i in range(1, n_hari + 1)]
-    input_df = pd.DataFrame([last_vals], columns=feature_names)
-    input_scaled = scaler.transform(input_df)
-    return model.predict(input_scaled)[0]
-
-
-# ==============================
-# 5️⃣  PREDIKSI
-# ==============================
-st.subheader("🔮 Prediksi Hari Berikutnya")
-
-if st.button("Prediksi Sekarang"):
-    predicted_no2 = prediksi_hari_berikutnya(new_df, knn_h3, scaler_h3, n_hari=3)
-
-    median_val = new_df['NO2'].quantile(0.50)
-    upper_quantile_val = new_df['NO2'].quantile(0.75)
-
-    if predicted_no2 <= median_val:
-        kategori = "Baik"
-        warna = "🟢"
-    elif predicted_no2 <= upper_quantile_val:
-        kategori = "Sedang"
-        warna = "🟡"
+# ===============================
+# Fungsi Kategori Udara WHO
+# ===============================
+def kategori_no2(value):
+    if value < 0.000020:
+        return "🟢 Baik"
+    elif value < 0.000040:
+        return "🟡 Sedang ⚠️"
+    elif value < 0.000060:
+        return "🟠 Tidak Sehat 🚫"
     else:
-        kategori = "Tinggi (Tidak Baik)"
-        warna = "🔴"
+        return "🔴 Sangat Tidak Sehat ☠️"
 
-    st.success(f"**Prediksi Konsentrasi NO₂:** {predicted_no2:.8f} mol/m²")
-    st.info(f"**Kategori Kualitas Udara:** {warna} {kategori}")
-    st.write("---")
+# ===============================
+# UI Streamlit
+# ===============================
+st.title("🌫️ Aplikasi Prediksi Konsentrasi NO₂ Harian")
+st.write("Gunakan aplikasi ini untuk melakukan prediksi otomatis atau manual terhadap kadar NO₂ harian berdasarkan model yang sudah dilatih.")
 
-    # Tampilkan batas-batas statistik
-    st.write(f"Median (Batas Baik): `{median_val:.8f}` mol/m²")
-    st.write(f"Kuantil Atas (Batas Sedang): `{upper_quantile_val:.8f}` mol/m²")
+mode = st.radio("Pilih Mode Prediksi:", ["Prediksi Otomatis", "Prediksi Manual Interaktif"])
 
-    # Visual prediksi
-    st.subheader("📉 Visualisasi Prediksi")
-    fig2, ax2 = plt.subplots(figsize=(8, 4))
-    ax2.plot(new_df['date'], new_df['NO2'], label="Data Historis", color='blue')
-    ax2.axhline(y=predicted_no2, color='red', linestyle='--', label="Prediksi Hari Berikutnya")
-    ax2.legend()
-    st.pyplot(fig2)
+# ===============================
+# MODE 1: Prediksi Otomatis
+# ===============================
+if mode == "Prediksi Otomatis":
+    st.subheader("📆 Prediksi Otomatis Hari Berikutnya")
 
+    if df is not None and not df.empty:
+        last_row = df.iloc[-1]
+        next_day = last_row['date'] + timedelta(days=1)
 
-# ==============================
-# 6️⃣  FOOTER
-# ==============================
+        last_features = pd.DataFrame([[last_row['h1'], last_row['h2'], last_row['h3']]],
+                                     columns=['h1', 'h2', 'h3'])
+
+        last_scaled = scaler.transform(last_features)
+        pred = model.predict(last_scaled)[0]
+
+        kategori = kategori_no2(pred)
+
+        st.success(f"Prediksi konsentrasi NO₂ untuk tanggal **{next_day.strftime('%Y-%m-%d')}** adalah **{pred:.6f} mol/m²**")
+        st.info(f"Kategori Udara (WHO): **{kategori}**")
+
+        # Plot hasil
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(df['date'], df['NO2'], label='Data Historis', marker='o')
+        ax.scatter(next_day, pred, color='red', label='Prediksi', s=80)
+        ax.set_title("Prediksi Otomatis Konsentrasi NO₂")
+        ax.set_xlabel("Tanggal")
+        ax.set_ylabel("Konsentrasi NO₂ (mol/m²)")
+        ax.legend()
+        st.pyplot(fig)
+    else:
+        st.error("❌ Data historis tidak ditemukan atau kosong.")
+
+# ===============================
+# MODE 2: Prediksi Manual Interaktif
+# ===============================
+else:
+    st.subheader("🧮 Prediksi Manual Interaktif")
+    st.write("Masukkan nilai konsentrasi NO₂ dari 3 hari terakhir:")
+
+    h1 = st.number_input("Hari ke-1 (H-1)", min_value=0.0, format="%.8f")
+    h2 = st.number_input("Hari ke-2 (H-2)", min_value=0.0, format="%.8f")
+    h3 = st.number_input("Hari ke-3 (H-3)", min_value=0.0, format="%.8f")
+
+    if st.button("Prediksi Sekarang"):
+        manual_features = pd.DataFrame([[h1, h2, h3]], columns=['h1', 'h2', 'h3'])
+        manual_scaled = scaler.transform(manual_features)
+        pred = model.predict(manual_scaled)[0]
+
+        kategori = kategori_no2(pred)
+
+        st.success(f"Perkiraan konsentrasi NO₂ adalah **{pred:.6f} mol/m²**")
+        st.info(f"Kategori Udara (WHO): **{kategori}**")
+
+# ===============================
+# Footer
+# ===============================
 st.markdown("---")
-st.caption("Dibuat oleh: **Dwi Prasetya Mumtaz** | Model: KNN Forecast NO₂ | Streamlit Deployment ✅")
+st.caption("Dibuat oleh Dwi Prasetya Mumtaz menggunakan Streamlit")
