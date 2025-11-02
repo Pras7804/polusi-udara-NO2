@@ -51,7 +51,7 @@ def kategori_no2(value):
 # ===============================
 # UI Streamlit
 # ===============================
-st.title("🌫️ Aplikasi Prediksi Konsentrasi NO₂ Harian")
+st.title("🌫️ Aplikasi Prediksi Konsentrasi NO₂ Sidayu, Gresik")
 st.write("Gunakan aplikasi ini untuk melakukan prediksi otomatis atau manual terhadap kadar NO₂ harian berdasarkan model yang sudah dilatih.")
 
 mode = st.radio("Pilih Mode Prediksi:", ["Prediksi Otomatis", "Prediksi Manual Interaktif"])
@@ -115,4 +115,5 @@ else:
 # ===============================
 st.markdown("---")
 st.caption("Dibuat oleh Dwi Prasetya Mumtaz menggunakan Streamlit")
+
 
